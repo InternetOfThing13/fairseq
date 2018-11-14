@@ -12,7 +12,17 @@ import re
 import torch
 import traceback
 
+from torch import nn
 from torch.serialization import default_restore_location
+
+
+# These modules should be kept in FP32 and not moved to FP16
+fp32_modules = [
+    nn.BatchNorm1d,
+    nn.BatchNorm2d,
+    nn.BatchNorm3d,
+    nn.LayerNorm,
+]
 
 
 def torch_persistent_save(*args, **kwargs):
@@ -425,3 +435,14 @@ def resolve_max_positions(*args):
                     map(nullsafe_min, zip(max_positions, arg))
                 )
     return max_positions
+
+
+def convert_model_to_fp16_(model):
+    """Similar to model.half(), but with some layers kept in FP32."""
+    model = model.half()
+    for m in model.modules():
+        for fp32_module in fp32_modules:
+            if isinstance(m, fp32_module):
+                m.float()
+                break
+    return model
